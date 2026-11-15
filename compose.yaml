@@ -1,0 +1,30 @@
+name: token-exchange-handson
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: [start-dev, --import-realm, '--features=token-exchange-delegation,parameterized-scopes']
+    environment:
+      KC_HOSTNAME: http://localhost:19361
+      KC_HTTP_ENABLED: 'true'
+    ports: ['127.0.0.1:19361:8080']
+    volumes:
+      - idp-data:/opt/keycloak/data
+      - ./.secrets/realm.json:/opt/keycloak/data/import/realm.json:ro
+  web:
+    build: .
+    command: [node, src/web.mjs]
+    ports: ['127.0.0.1:19360:3000']
+    environment:
+      IDP_INTERNAL: http://keycloak:8080/realms/exchange-lab
+      API_INTERNAL: http://api:3001
+    volumes:
+      - ./.secrets/config.json:/run/secrets/config.json:ro
+    depends_on: [keycloak, api]
+  api:
+    build: .
+    command: [node, src/api.mjs]
+    ports: ['127.0.0.1:19362:3001']
+    environment:
+      IDP_INTERNAL: http://keycloak:8080/realms/exchange-lab
+volumes:
+  idp-data:

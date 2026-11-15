@@ -1,0 +1,4 @@
+.secrets/
+artifacts/
+.env
+node_modules/

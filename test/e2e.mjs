@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {Browser} from './browser.mjs';
+const browser=new Browser(),base='http://localhost:19360';
+const credentials=JSON.parse(readFileSync('.secrets/login.json','utf8'));
+assert.equal((await browser.request(base+'/callback?code=invalid&state=invalid')).status,400);
+await browser.signIn(base+'/login',credentials);
+const session=await (await browser.request(base+'/session')).json();
+assert.equal(session.authenticated,true,'Login failed');assert.equal(session.source.sub,'lab-user-id');assert.ok(!session.source.act);
+assert.equal((await browser.request(base+'/exchange',{method:'POST',headers:{Origin:base,'X-CSRF-Token':'bad'},body:'{}'})).status,403);
+async function post(path,data){const r=await browser.request(base+path,{method:'POST',headers:{Origin:base,'X-CSRF-Token':session.csrf,'Content-Type':'application/json'},body:JSON.stringify(data)});assert.equal(r.status,200);return r.json();}
+const original=await post('/call',{using:'source',method:'GET'});assert.equal(original.http_status,401);assert.equal(original.response.reason,'wrong_audience');
+console.log('PASS source token rejected by API: audience mismatch');
+const read=await post('/exchange',{mode:'read'});assert.equal(read.http_status,200,JSON.stringify(read.response));
+assert.equal(read.response.claims.sub,session.source.sub);assert.equal(read.response.claims.act.sub,'lab-agent-id');assert.equal(read.response.claims.act.client_id,'lab-agent');assert.equal(read.response.claims.scope,'document.read');
+console.log('PASS real exchange: same sub, new act, API audience, read scope');
+const before=await post('/call',{using:'read',method:'GET'});assert.equal(before.http_status,200);
+const denied=await post('/call',{using:'read',method:'PUT',text:'must not write'});assert.equal(denied.http_status,403);assert.equal(denied.response.error,'insufficient_scope');
+const afterDenied=await post('/call',{using:'read',method:'GET'});assert.deepEqual(afterDenied.response.document,before.response.document);
+console.log('PASS read-only PUT rejected; document and revision unchanged');
+const full=await post('/exchange',{mode:'full'});assert.equal(full.http_status,200);assert.ok(full.response.claims.scope.includes('document.write'));
+const text='e2e-'+Date.now();const changed=await post('/call',{using:'full',method:'PUT',text});assert.equal(changed.http_status,200);assert.equal(changed.response.document.text,text);assert.equal(changed.response.document.revision,before.response.document.revision+1);
+const reread=await post('/call',{using:'read',method:'GET'});assert.equal(reread.response.document.text,text);
+console.log('PASS full exchange PUT persisted; read-only token reads changed document');
+const escalation=await post('/exchange',{mode:'escalate'});assert.equal(escalation.http_status,400,JSON.stringify(escalation.response));assert.equal(escalation.response.error,'invalid_scope');
+console.log('PASS Keycloak rejects scope escalation: '+escalation.response.error);
+// Restore this test's previous demo content; readers can start with the original text.
+await post('/call',{using:'full',method:'PUT',text:before.response.document.text});
+await post('/logout',{});assert.equal((await (await browser.request(base+'/session')).json()).authenticated,false);
+console.log('PASS logout; no JWTs or credentials printed');
