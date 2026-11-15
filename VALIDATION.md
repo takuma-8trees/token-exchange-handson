@@ -28,6 +28,14 @@
 
 回帰確認はさらに、不正callback、CSRF、Labログアウトを確認する。JWTの単体確認は改ざん、期限切れ、issuer不一致、audience不一致を扱う。
 
+## 新規cloneによる再現
+
+GitHubに公開した`59a5d88`を新規cloneし、READMEの`sh run/start.sh`から初回設定を生成。元環境と異なる資格情報、新規Keycloak volumeで`sh run/verify.sh`の全項目が成功した。実装・起動設定・テストはこのcommitから変更していない。最終文書を含む固定参照は[v0.1.0](https://github.com/takuma-8trees/token-exchange-handson/tree/v0.1.0)。
+
+同じホストで比較するため元の教材だけを停止し、再現側には`COMPOSE_PROJECT_NAME=token-exchange-handson-clean`を指定した。環境のDockerアドレスプール枯渇で最初のネットワーク作成が失敗したため、元の教材を`docker compose down`（volume保持）して再実行。新規環境を終了後、元の教材を起動した。他案件のネットワークやvolumeは削除していない。初回cloneでの実ブラウザー操作は重複実施せず、HTTPドライバーがログイン・同意と同一API操作を確認した。
+
+Keycloakの起動ログには、教材用の読みやすい固定ユーザーID形式と既定のFull scope allowed設定に関する将来の互換性警告が出る。26.8.1での動作確認であり、版更新時は設定を再評価する。
+
 ## 制約
 
 - 一つのrealm、固定subject/actor、一件の文書、ローカルHTTPによる教材。

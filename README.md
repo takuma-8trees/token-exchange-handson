@@ -18,7 +18,7 @@
 WSLのターミナルで実行します。
 
 ```sh
-git clone https://github.com/takuma-8trees/token-exchange-handson.git
+git clone --branch v0.1.0 https://github.com/takuma-8trees/token-exchange-handson.git
 cd token-exchange-handson
 sh run/start.sh
 cat .secrets/login.json
